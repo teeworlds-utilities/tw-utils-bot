@@ -1,0 +1,52 @@
+version: "3.5"
+
+services:
+
+  # Cache
+  twutils_cache:
+    image: redis:alpine
+    container_name: twutils_cache
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-volume:/data
+
+  # tw-utils REST API
+  twutils_rest_api:
+    image: node:16.11.1
+    container_name: twutils_rest_api
+    volumes:
+      - ./tw-utils-api:/rest_api
+      - ${STORAGE_PATH}:/rest_api/${STORAGE_PATH}
+    working_dir: /rest_api
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+    - |
+      npm i
+      npm run serve
+    environment:
+      PORT: ${TW_UTILS_PORT}
+
+  # Discord bot
+  twutils_bot:
+    image: python:3.9.6
+    container_name: twutils_bot
+    volumes:
+      - ./:/app
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+    - |
+      pip install -r /app/requirements.txt
+      PYTHONUNBUFFERED=1 python /app/main.py
+
+    environment:
+      TW_UTILS_HOST: http://twutils_rest_api
+      TW_UTILS_PORT: ${TW_UTILS_PORT}
+      REDIS_HOST: twutils_cache
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      
+    depends_on:
+      - twutils_rest_api
+      - twutils_cache
